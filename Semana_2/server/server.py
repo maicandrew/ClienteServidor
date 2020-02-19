@@ -1,18 +1,12 @@
 import zmq
-import hashlib
+from hashlib import sha256
 from os import listdir
 from os.path import isfile
 
 context = zmq.Context()
 socket = context.socket(zmq.REP)
 socket.bind("tcp://*:5555")
-
-def hashfile(name):
-    f = open(name, "rb")
-    sha_signature = hashlib.sha256(f.read()).hexdigest()
-    f.close()
-    return sha_signature
-
+PS = 1024*1024*2
 
 def download(name):
     f = open(name, "rb")
@@ -23,12 +17,18 @@ def download(name):
     socket.send(hashfile(name).encode())
 
 def upload(name):
-    f = open(name, "wb")
     socket.send(b"ok")
-    data = socket.recv()
-    f.write(data)
-    f.close()
-    socket.send(hashfile(name).encode())
+    while True:
+        msg = socket.recv_multipart()
+        if msg[0].decode() != "end":
+            f = open(msg[0].decode(), "wb")
+            socket.send(sha256(msg[1]).hexdigest().encode())
+            f.write(msg[1])
+            f.close()
+        else:
+            socket.send(b"fin")
+            break
+    #socket.send(hashfile(name).encode())
 
 def listar():
     onlyfiles = [f for f in listdir() if isfile(f) and f != "server.py"]
