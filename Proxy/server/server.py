@@ -5,15 +5,15 @@ from os import listdir, makedirs
 from os.path import isfile, exists
 import json
 
-port = sys.argv[1]
+port = sys.argv[2]
+proxy = sys.argv[4]
 context = zmq.Context()
 socket = context.socket(zmq.REP)
-dict = json.load(open("files.json","r"))
 PS = 1024*32
 
 def download(name):
-    if exists(port+"/"+name):
-        file = open(port+"/"+name, "rb")
+    if exists(ip+"-"+port+"/"+name):
+        file = open(ip+"-"+port+"/"+name, "rb")
         data = file.read()
         sha = sha256(data).hexdigest()
         socket.send_multipart((b"ok", sha.encode(), data))
@@ -42,9 +42,9 @@ def upload():
     msg = socket.recv_multipart()
     msg[0] = msg[0].decode()
     if msg[0] != "end":
-        if not exists(port):
-            makedirs(port)
-        path = port + "/" + msg[0]
+        if not exists(ip+"-"+port):
+            makedirs(ip+"-"+port)
+        path = ip+"-"+port + "/" + msg[0]
         msg[2] = msg[2].decode()
         msg[3] = msg[3].decode()
         dict["files"][msg[3]] = msg[2]
@@ -57,7 +57,7 @@ def upload():
 
 def proxy_connect(address, parts):
     socket_proxy = context.socket(zmq.REQ)
-    socket_proxy.connect("tcp://localhost:7556")
+    socket_proxy.connect("tcp://"+proxy)
     socket_proxy.send_multipart((b"#server", address.encode(), parts.encode()))
     if socket_proxy.recv() == b"ok":
         print("Conectado")
@@ -67,9 +67,10 @@ def proxy_connect(address, parts):
         return False
 
 if __name__ == "__main__":
+    ip  = sys.argv[1]
     bind_address = "tcp://*:"+port
-    address = "tcp://localhost:"+port
-    parts = sys.argv[2]
+    address = "tcp://"+ip+":"+port
+    parts = sys.argv[3]
     print("Conectando al proxy...")
     socket.bind(bind_address)
     if proxy_connect(address, parts):
