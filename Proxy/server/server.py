@@ -9,7 +9,8 @@ port = sys.argv[2]
 proxy = sys.argv[4]
 context = zmq.Context()
 socket = context.socket(zmq.REP)
-PS = 1024*32
+dictt = json.load(open("files.json", "r"))
+PS = 1024*1024*5
 
 def download(name):
     if exists(ip+"-"+port+"/"+name):
@@ -19,23 +20,6 @@ def download(name):
         socket.send_multipart((b"ok", sha.encode(), data))
     else:
         socket.send(b"bad")
-    # while ans[0] == b"ok":
-    #     file = open(name,"rb")
-    #     data = file.read()
-    #     socket.send_multipart((b"ok", data, hash.encode()))
-    #     ans = socket.recv()
-    #     if ans != b"ok":
-    #         break
-    # if ans != b"ok":
-    #     socket.send_multipart((b"bad", dict["files"][name].encode()))
-    # else:
-    #     socket.send_multipart((b"done", dict["files"][name].encode()))
-    #f = open(name, "rb")
-    #data = f.read()
-    #socket.send(data)
-    #f.close()
-    #socket.recv()
-    #socket.send(sha256(name).hexdigest().encode())
 
 def upload():
     socket.send(b"ok")
@@ -47,7 +31,7 @@ def upload():
         path = ip+"-"+port + "/" + msg[0]
         msg[2] = msg[2].decode()
         msg[3] = msg[3].decode()
-        dict["files"][msg[3]] = msg[2]
+        dictt["files"][msg[3]] = msg[2]
         f = open(path, "wb")
         socket.send(sha256(msg[1]).hexdigest().encode())
         f.write(msg[1])

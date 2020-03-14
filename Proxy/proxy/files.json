@@ -1,6 +1,43 @@
 {
     "files": {
+        "a.pdf": "20394e3aade04ef9aca6283c3e9890f4b7e73639b896455ce25b6202d2339c2a",
+        "test.aa": "f98e90f5e07efd685f92d757ef6efe558ab2800a63814a94305388545ec2c703",
+        "a.a": "6900f070824e3e6161b85911e91f6e9721013860d2d00dbf0c91b568a3616450"
     },
     "assignment": {
+        "20394e3aade04ef9aca6283c3e9890f4b7e73639b896455ce25b6202d2339c2a": {
+            "tcp://localhost:5557": {
+                "0": "20394e3aade04ef9aca6283c3e9890f4b7e73639b896455ce25b6202d2339c2a"
+            }
+        },
+        "f98e90f5e07efd685f92d757ef6efe558ab2800a63814a94305388545ec2c703": {
+            "tcp://localhost:5557": {
+                "0": "24400540c434deb65fce0065f877e931e3f1b823bffc619dca4d59131f99bc6b",
+                "2": "e5023cbd6239fcd53bc783e191ab7ae67094b1d57eafe270604b18d1aa3899a1",
+                "4": "5d103db663ea797a961e5e7eedf24d7e229e6e11ab05b2ac8006f941c05de72c",
+                "6": "8c9fdb6ab27c43cae7c3c2ef496b3688c624e2a4667625d12dc0ca5a280b96df",
+                "8": "3b8e7af523ea1d150748e099b4779fa57ab16c74a479e90bc9f0eeb7fe9310d3",
+                "10": "b7afa827840961b46299990802df82f4811f8e92aab34246cb93e33d3d070dbb",
+                "12": "b7957f4be79a12dbe4c016b508bfa466dab481ff311df4572e3099e92f33320f"
+            },
+            "tcp://localhost:5558": {
+                "1": "2140e32c17b26da5d76253f38f05d627c9c37009a5393e36178c52c9e3de25eb",
+                "3": "dc7926b61a9a4f566013b547c544f4ba2f217c0919fa8b67ce8ad6e9d328abe4",
+                "5": "06f775e7be66b16b58cde07205da7ee061e39d82e4a6a0b2b819de2794ffc0a5",
+                "7": "c7c75fec494acfb78d11c59e7af153d40187c6420ce68b4f1f1c98e64c91d5bd",
+                "9": "25610fc92c023fa3fb7682b39377d06c1ebda53b2ac75717a4d4af98cd892f77",
+                "11": "1df2ad814d94e4c4a8f14ecc923415bb9952b0179691e1ac26e6f86c031239e0",
+                "13": "6307c8d7435c652acbee4402099358b9bbfd6ccf024fed06dba626458d42ab4a"
+            }
+        },
+        "6900f070824e3e6161b85911e91f6e9721013860d2d00dbf0c91b568a3616450": {
+            "tcp://localhost:5557": {
+                "0": "04a1def7be70895d0f35d7f7b8ed8d1a3a303185da9c32834b1ac8ff33a935a3",
+                "2": "09c514256cdc51094e87be08c7f4ad31eabb4de81a8f56313fd0852069d8857a"
+            },
+            "tcp://localhost:5558": {
+                "1": "790d0f4457e93d39bc7c6c0409471f8d0435f0972436b91ee4814b6b10fc03cb"
+            }
+        }
     }
 }

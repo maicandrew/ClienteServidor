@@ -9,7 +9,7 @@ context = zmq.Context()
 sockets = {}
 proxySocket = context.socket(zmq.REQ)
 proxySocket.connect("tcp://localhost:7556")
-PS = 1024*32
+PS = 1024*1024*5
 
 def full_hash(name):
     f = open(name, "rb")
@@ -40,9 +40,9 @@ def hash_parts(name):
 
 def download(name):
     # try:
-    dictt = json.load(open("files.json", "r"))
-    if name in dictt["files"]:
-        parts = dict(dictt["parts"][dictt["files"][name]].items())
+    proxySocket.send_multipart((b"#client-download", name.encode()))
+    parts = proxySocket.recv_json()
+    if not "Error" in parts:
         d = {}
         for server in parts:
             socket = context.socket(zmq.REQ)
@@ -109,8 +109,8 @@ def upload(name):
                 f.seek(PS*int(p))
                 data = f.read(PS)
                 sha = sha256(data).hexdigest()
-                if sha == d[server][p]:
-                    print("Bn")
+                if not sha == d[server][p]:
+                    raise Exception
                 i+=1
                 socket.send_multipart((sha.encode(),data,sha_file.encode(), name.encode()))
                 sha_server = socket.recv().decode()
@@ -120,13 +120,13 @@ def upload(name):
                      raise Exception
             f.close()
             socket.close()
-        dict = json.load(open("files.json","r"))
-        if not name in dict["files"]:
-            dict["files"][name] = sha_file
-        if not sha_file in dict["parts"]:
-            dict["parts"][sha_file] = d
+        dictt = json.load(open("files.json","r"))
+        if not name in dictt["files"]:
+            dictt["files"][name] = sha_file
+        if not sha_file in dictt["parts"]:
+            dictt["parts"][sha_file] = d
         with open("files.json", "w+") as file:
-            file.write(json.dumps(dict,indent=4))
+            file.write(json.dumps(dictt,indent=4))
             file.close()
     except:
          print("Error")

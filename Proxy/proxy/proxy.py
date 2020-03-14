@@ -7,23 +7,43 @@ socket.bind("tcp://*:7556")
 servers = {}
 
 def new_server(address, size):
-    servers[address] = size
+    servers[address] = int(size)
     socket.send(b"ok")
+
+def client_download(name):
+    files = json.load(open("files.json", "r"))
+    if name in files["files"]:
+        res = files["parts"][files["files"][name]]
+        socket.send_json(res)
+    else:
+        default = {
+            "Error":"File not found"
+        }
+        socket.send_json(default)
 
 def client_upload(hash, name, l):
     assignment = {}
-    keys = list(servers.keys())
+    keys = [*servers.keys()]
     sl = len(keys)
-    for i in range(len(l)):
-        if not keys[i%sl] in assignment:
-            assignment[keys[i%sl]] = {}
-        assignment[keys[i%sl]][i] = l[i].decode()
+    i = 0
+    for _ in range(len(l)):
+        while True:
+            if not keys[i%sl] in assignment:
+                assignment[keys[i%sl]] = {}
+            if servers[keys[i%sl]] >= 1:
+                assignment[keys[i%sl]][i] = l[i].decode()
+                servers[keys[i%sl]] -= 1
+                i+= 1
+                break
+            else:
+                i+=1
+
     socket.send_json(assignment)
-    dict = json.load(open("files.json","r"))
-    dict["files"][name] = hash
-    dict["assignment"][hash] = assignment.copy()
+    dictt = json.load(open("files.json","r"))
+    dictt["files"][name] = hash
+    dictt["assignment"][hash] = assignment.copy()
     with open("files.json", "w+") as p:
-        p.write(json.dumps(dict,indent=4))
+        p.write(json.dumps(dictt,indent=4))
         p.close()
 
 def list():
@@ -33,6 +53,7 @@ def list():
     socket.send(cad.encode())
 
 if __name__ == "__main__":
+    print("Proxy corriendo...")
     while True:
         msg  = socket.recv_multipart()
         msg[0] = msg[0].decode()
@@ -42,7 +63,12 @@ if __name__ == "__main__":
                 print("Servidor agregado, servidores en linea:",servers)
             except:
                 socket.send(b"bad")
+        elif msg[0] == "#client-download":
+            print("Action: Client download")
+            client_download(msg[1].decode)
         elif msg[0] == "#client-upload":
+            print("Action: Client upload")
             client_upload(msg[1].decode(), msg[2].decode(), msg[3:])
         elif msg[0] == "#list":
+            print("Action: Listar")
             list()
