@@ -72,22 +72,6 @@ def download(name):
             remove("downloaded/"+s[p])
         file.close()
 
-        # com = "#d " + name
-        # socket.send(com.encode())
-        # f = open(name, "wb")
-        # data = socket.recv()
-        # f.write(data)
-        # f.close()
-        # socket.send(b".")
-        # sha_server = socket.recv().decode()
-        # sha_client = sha256(name)
-        # if sha_client == sha_server:
-        #     print("Descarga exitosa")
-        # else:
-        #     raise Exception
-    # except:
-    #     print("Error")
-
 def upload(name):
     try:
         sha_file, parts = hash_parts(name)

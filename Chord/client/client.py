@@ -5,11 +5,7 @@ from os import remove
 from os.path import exists
 from hashlib import sha256
 
-context = zmq.Context()
-sockets = {}
-proxySocket = context.socket(zmq.REQ)
-proxySocket.connect("tcp://localhost:7556")
-PS = 1024*32
+PS = 1024*1024*5
 
 def full_hash(name):
     f = open(name, "rb")
@@ -38,7 +34,7 @@ def hash_parts(name):
                 break
     return sha.hexdigest(), h
 
-def download(name):
+def download(name, context):
     # try:
     dictt = json.load(open("files.json", "r"))
     if name in dictt["files"]:
@@ -72,85 +68,71 @@ def download(name):
             remove("downloaded/"+s[p])
         file.close()
 
-        # com = "#d " + name
-        # socket.send(com.encode())
-        # f = open(name, "wb")
-        # data = socket.recv()
-        # f.write(data)
-        # f.close()
-        # socket.send(b".")
-        # sha_server = socket.recv().decode()
-        # sha_client = sha256(name)
-        # if sha_client == sha_server:
-        #     print("Descarga exitosa")
-        # else:
-        #     raise Exception
-    # except:
-    #     print("Error")
-
-def upload(name):
-    try:
-        sha_file, parts = hash_parts(name)
-        msg = [b"#client-upload", sha_file.encode(), name.encode()]
-        for p in parts:
-            msg.append(p.encode())
-        proxySocket.send_multipart(tuple(msg))
-        d = proxySocket.recv_json()
-        i = 0
-        for server in d:
-            socket = context.socket(zmq.REQ)
-            socket.connect(server)
-            f = open(name, "rb")
-            print(server)
-            for p in d[server]:
-                print(p)
-                socket.send(b"#u")
-                socket.recv()
-                f.seek(PS*int(p))
-                data = f.read(PS)
-                sha = sha256(data).hexdigest()
-                if sha == d[server][p]:
-                    print("Bn")
-                i+=1
-                socket.send_multipart((sha.encode(),data,sha_file.encode(), name.encode()))
-                sha_server = socket.recv().decode()
-                if sha == sha_server:
-                    print("Parte",i,"subida")
-                else:
-                     raise Exception
-            f.close()
-            socket.close()
-        dict = json.load(open("files.json","r"))
-        if not name in dict["files"]:
-            dict["files"][name] = sha_file
-        if not sha_file in dict["parts"]:
-            dict["parts"][sha_file] = d
-        with open("files.json", "w+") as file:
-            file.write(json.dumps(dict,indent=4))
-            file.close()
-    except:
-         print("Error")
-         socket.send(b"end")
-
-def listar():
-    proxySocket.send(b"#list")
-    cad = proxySocket.recv().decode()
-    files = cad.split(",")
-    for f in files:
-        print(f)
+def upload(name, server_address, context):
+    if not exists(name):
+        print("Archivo no encontrado")
+        return
+    # try:
+    so = context.socket(zmq.REQ)
+    sha_file, parts = hash_parts(name)
+    meta = {
+        "name" : name,
+        "hash" : sha_file,
+        "parts" : {}
+    }
+    f = open(name, "rb")
+    for i, p in enumerate(parts):
+        d = {
+            "action" : "upload",
+            "name" : p
+        }
+        f.seek(PS*i)
+        data = f.read(PS)
+        while True:
+            so.connect(server_address)
+            so.send_json(d)
+            r = so.recv_json()
+            if r["state"] == "ok":
+                meta["parts"][str(i)] = [p, r["address"]]
+                so.send_multipart((p.encode(), data))
+                so.recv()
+                break
+            elif r["state"] == "next":
+                so.disconnect(server_address)
+                server_address = r["next"]
+    print("Archivo subido con éxito")
+    f = open("files.json", "w+")
+    f.write(json.dumps(meta,indent=4))
+    f.close()
+    f = open("files.json","rb")
+    data = f.read()
+    h = sha256(data).hexdigest()
+    while True:
+            so.connect(server_address)
+            so.send_json({"action" : "upload", "name" : h})
+            r = so.recv_json()
+            if r["state"] == "ok":
+                so.send_multipart((h.encode(), data))
+                so.recv()
+                print("El hash para acceder a su archivo es:",h)
+                break
+            elif r["state"] == "next":
+                so.disconnect(server_address)
+                server_address = r["next"]
+    so.close()
+    return True
 
 def main():
+    context = zmq.Context()
     if len(sys.argv) >= 2:
         if sys.argv[1] == "upload":
             print("Subiendo...")
-            upload(sys.argv[2])
-            print("Terminado")
+            upload(sys.argv[2], sys.argv[3], context)
         elif sys.argv[1] == "download":
             download(sys.argv[2])
-        elif sys.argv[1] == "listar":
-            listar()
     else:
-        print("Uso incorrecto")
+        print("Uso incorrecto: el uo correcto es:")
+        print("python client.py [action] [filename] [server-address]")
 
 if __name__ == "__main__":
     main()
