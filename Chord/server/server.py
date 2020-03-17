@@ -1,9 +1,9 @@
 import zmq
 import sys
 import random, string
-from getmac import get_mac_address as get_mac
+from uuid import getnode
 from hashlib import sha256
-from os import listdir, makedirs
+from os import listdir, remove, mkdir
 from os.path import isfile, exists
 import json
 
@@ -11,7 +11,12 @@ def hash_id(cad):
     return int(sha256(cad.encode()).hexdigest(), 16)
 
 def gen_ran(n):
-    c = "asd"
+    mac = getnode()
+    h = hex(mac)[2:]
+    l = []
+    for i in range(0,len(h),2):
+        l.append(h[i:i+2])
+    c = ":".join(l)
     print(c)
     for _ in range(n):
         c += random.choice(string.ascii_letters+string.digits)
@@ -31,17 +36,58 @@ class Servidor():
         self.hash_range = [None,None]
 
     def download(self, name):
-        if exists(self.path+"/"+name):
-            file = open(self.path+"/"+name, "rb")
-            data = file.read()
-            sha = sha256(data).hexdigest()
-            self.socket.send_multipart((b"ok", sha.encode(), data))
+        try:
+            id_name = int(name, 16)
+        except ValueError:
+            self.socket.send_multipart((b"bad", b"Nombre invalido"))
+            return
+        path_file = self.path + "/" + name
+        if self.hash_range[0] >= self.hash_range[1]: #Caso de nodo final
+            if self.hash_range[0] < id_name or id_name <= self.hash_range[1]:
+                if isfile(path_file):
+                    f = open(path_file,"rb")
+                    data = f.read()
+                    h = sha256(data).hexdigest()
+                    self.socket.send_multipart((b"ok", h.encode(), data))
+                else:
+                    self.socket.send_multipart((b"bad", b"El archivo no existe"))
+            else:
+                if id_name > self.hash_range[1]:
+                    self.socket.send_multipart((b"next", self.successor.encode()))
+                elif id_name <= self.hash_range[0]:
+                    self.socket.send_multipart((b"next", self.predecessor.encode()))
         else:
-            self.socket.send(b"bad")
+            if self.hash_range[0] < id_name <= self.hash_range[1]:
+                if isfile(path_file):
+                    f = open(path_file,"rb")
+                    data = f.read()
+                    h = sha256(data).hexdigest()
+                    self.socket.send_multipart((b"ok", h.encode(), data))
+                else:
+                    self.socket.send_multipart((b"bad", b"El archivo no existe"))
+            else:
+                if id_name > self.hash_range[1]:
+                    self.socket.send_multipart((b"next", self.successor.encode()))
+                elif id_name <= self.hash_range[0]:
+                    self.socket.send_multipart((b"next", self.predecessor.encode()))
+    
+    def ser_download(self, name):
+        path_file = self.path + "/" + name
+        if isfile(path_file):
+            data = open(path_file,"rb").read()
+            h = sha256(data).hexdigest()
+            self.socket.send_multipart((b"ok",h.encode(), data))
+        else:
+            self.socket.send_multipart(b"bad", b"El archivo no existe")
 
     def upload(self, name):
-        id_name = int(name,16)
-        dictt = {}
+        try:
+            id_name = int(name, 16)
+        except ValueError:
+            self.socket.send_json({
+                "state" : "badHash",
+            })
+            return
         if self.hash_range[0] >= self.hash_range[1]: #Caso de nodo final
             if self.hash_range[0] < id_name or id_name <= self.hash_range[1]:
                 self.socket.send_json({"state" : "ok", "address" : "tcp://"+self.ip+":"+self.port})
@@ -49,6 +95,7 @@ class Servidor():
                 if sha256(msg[1]).hexdigest() == msg[0].decode():
                     f = open(self.path+"/"+msg[0].decode(), "wb")
                     f.write(msg[1])
+                    f.close()
                     self.socket.send(b"ok")
             else:
                 d = {
@@ -68,6 +115,7 @@ class Servidor():
                 if sha256(msg[1]).hexdigest() == msg[0].decode():
                     f = open(self.path+"/"+msg[0].decode(), "wb")
                     f.write(msg[1])
+                    f.close()
                     self.socket.send(b"ok")
             else:
                 d = {
@@ -110,14 +158,21 @@ class Servidor():
         so.connect(self.successor)
         for p in r["parts"]:
             d = {
-                "action" : "download",
+                "action" : "ser_download",
                 "name" : p
             }
             so.send_json(d)
             msg = so.recv_multipart()
-            f = open(msg[1].decode(), "wb")
-            f.write(msg[2])
-            f.close()
+            if msg[0] == b"ok":
+                if msg[1].decode() == p:
+                    f = open(self.path+"/"+p, "wb+")
+                    f.write(msg[2])
+                    f.close()
+                    print("Descargado", p)
+                else:
+                    print("Integridad de los datos comprometida")
+            else:
+                print("Error")
 
     def add_server(self, node_address, node_ID):
         d = {"parts":{}}
@@ -125,7 +180,9 @@ class Servidor():
             if self.hash_range[0] < node_ID or node_ID <= self.hash_range[1]:
                 for f in listdir(self.ip+"-"+self.port):
                     i = int(f,16)
-                    if i <= node_ID:
+                    if i > self.hash_range[0] and i <= node_ID and node_ID > self.hash_range[0]:
+                        d["parts"][f] = f
+                    elif (i <= self.hash_range[1] or i > self.hash_range[0]) and node_ID < self.hash_range[1]:
                         d["parts"][f] = f
                 d["state"] = "ok"
                 d["lowest_hash"] = self.hash_range[0]
@@ -134,7 +191,7 @@ class Servidor():
                     d["successor"] = "tcp://"+self.ip+":"+self.port
                     d["predecessor"] = self.predecessor
                     with self.context.socket(zmq.REQ) as s:
-                        s.connect(self.successor)
+                        s.connect(self.predecessor)
                         d1 = {
                             "action" : "successor",
                             "address" : node_address
@@ -144,7 +201,7 @@ class Servidor():
                         a = s.recv().decode()
                         if a == b"ok":
                             print(a)
-                            print("""Nodo predecesor actualizado:
+                            print("""Nodo sucesor actualizado:
                             {id} con ip {add}""".format(add=node_address,
                             id = node_ID))
                         s.close()
@@ -172,7 +229,7 @@ class Servidor():
                 d["successor"] = "tcp://"+self.ip+":"+self.port
                 d["predecessor"] = self.predecessor
                 with self.context.socket(zmq.REQ) as s:
-                    s.connect(self.successor)
+                    s.connect(self.predecessor)
                     d1 = {
                         "action" : "successor",
                         "address" : node_address
@@ -196,6 +253,8 @@ if __name__ == "__main__":
     ip = sys.argv[1]
     port = sys.argv[2]
     s = Servidor(ip, port)
+    if not exists(s.path):
+        mkdir(s.path)
     if len(sys.argv) == 3:
         s.hash_range[0] = s.ID
         s.hash_range[1] = s.ID
@@ -203,10 +262,7 @@ if __name__ == "__main__":
         address = "tcp://"+ip+":"+port
         node_connect = "tcp://"+sys.argv[3]
         print("Conectando a la red...")
-        if s.server_connect(address, node_connect):
-            print("Corriendo...")
-        else:
-            print("Error al conectarse a la red")
+        s.server_connect(address, node_connect)
     else:
         print("""Uso incorrecto, el uso correcto es:
         Nodo inicial: python server.py [ip_propia] [puerto_propio]
@@ -215,8 +271,6 @@ if __name__ == "__main__":
     s.socket.bind("tcp://*:"+port)
     print(port)
     print(s.hash_range)
-    if not exists(s.path):
-        makedirs(s.path)
     while True:
         print(s.successor, s.predecessor)
         print("Escuchando...")
@@ -232,6 +286,10 @@ if __name__ == "__main__":
             s.socket.send(b"ok")
         elif l["action"] == "upload":
             s.upload(l["name"])
+        elif l["action"] == "download":
+            s.download(l["name"])
+        elif l["action"] == "ser_download":
+            s.ser_download(l["name"])
         # elif l[0] == b"#l":
         #     pass
             #listar()
