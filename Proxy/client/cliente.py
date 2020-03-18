@@ -1,7 +1,7 @@
 import zmq
 import sys
 import json
-from os import remove
+from os import remove, mkdir
 from os.path import exists
 from hashlib import sha256
 
@@ -40,6 +40,7 @@ def hash_parts(name):
 
 def download(name):
     # try:
+    print(name)
     proxySocket.send_multipart((b"#client-download", name.encode()))
     parts = proxySocket.recv_json()
     if not "Error" in parts:
@@ -71,6 +72,8 @@ def download(name):
             part.close()
             remove("downloaded/"+s[p])
         file.close()
+    else:
+        print("Error del proxy")
 
 def upload(name):
     try:
@@ -124,6 +127,8 @@ def listar():
         print(f)
 
 def main():
+    if not exists("downloaded"):
+        mkdir("downloaded")
     if len(sys.argv) >= 2:
         if sys.argv[1] == "upload":
             print("Subiendo...")

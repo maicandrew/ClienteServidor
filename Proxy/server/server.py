@@ -5,14 +5,9 @@ from os import listdir, makedirs
 from os.path import isfile, exists
 import json
 
-port = sys.argv[2]
-proxy = sys.argv[4]
-context = zmq.Context()
-socket = context.socket(zmq.REP)
-dictt = json.load(open("files.json", "r"))
 PS = 1024*1024*5
 
-def download(name):
+def download(name, ip, port, socket):
     if exists(ip+"-"+port+"/"+name):
         file = open(ip+"-"+port+"/"+name, "rb")
         data = file.read()
@@ -21,7 +16,7 @@ def download(name):
     else:
         socket.send(b"bad")
 
-def upload():
+def upload(ip, port, socket):
     socket.send(b"ok")
     msg = socket.recv_multipart()
     msg[0] = msg[0].decode()
@@ -50,8 +45,18 @@ def proxy_connect(address, parts):
         print("Error al intentar conectarse al proxy")
         return False
 
+def listar():
+    onlyfiles = [f for f in listdir() if isfile(f) and f != "server.py"]
+    cad = ",".join(onlyfiles)
+    socket.send(cad.encode())
+
 if __name__ == "__main__":
     ip  = sys.argv[1]
+    port = sys.argv[2]
+    proxy = sys.argv[4]
+    context = zmq.Context()
+    socket = context.socket(zmq.REP)
+    dictt = json.load(open("files.json", "r"))
     bind_address = "tcp://*:"+port
     address = "tcp://"+ip+":"+port
     parts = sys.argv[3]
@@ -62,8 +67,8 @@ if __name__ == "__main__":
         while True:
             l = socket.recv_multipart()
             if l[0] == b"#d":
-                download(l[1].decode())
+                download(l[1].decode(), ip, port, socket)
             elif l[0] == b"#u":
-                upload()
+                upload(ip, port, socket)
             elif l[0] == b"#l":
                 listar()

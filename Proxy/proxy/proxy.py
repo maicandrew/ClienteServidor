@@ -11,9 +11,10 @@ def new_server(address, size):
     socket.send(b"ok")
 
 def client_download(name):
+    print(name)
     files = json.load(open("files.json", "r"))
     if name in files["files"]:
-        res = files["parts"][files["files"][name]]
+        res = files["assignment"][files["files"][name]]
         socket.send_json(res)
     else:
         default = {
@@ -65,7 +66,7 @@ if __name__ == "__main__":
                 socket.send(b"bad")
         elif msg[0] == "#client-download":
             print("Action: Client download")
-            client_download(msg[1].decode)
+            client_download(msg[1].decode())
         elif msg[0] == "#client-upload":
             print("Action: Client upload")
             client_upload(msg[1].decode(), msg[2].decode(), msg[3:])
