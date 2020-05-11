@@ -1,11 +1,11 @@
 import zmq
-import pandas
+import difflib as dl
 from math import ceil
 import time
 import sys
+import os
 from copy import deepcopy
 import random
-
 #
 # def start(x,y):
 #     result = []
@@ -25,13 +25,32 @@ import random
 #                 result[i][j] += a[i][k] * b[k][j]
 #     return result
 
+def parse_line(line):
+    line = line[:-1]
+    d = {}
+    sp = line.split(",")
+    for m in sp:
+        m = m[1:-1].split(" ")
+        d[m[0]] = int(m[1])
+    return d
+
+def count_f(cad):
+    c = 0
+    for f in os.listdir():
+        if cad in f:
+            c += 1
+    return c
+
 class Fan:
-    def __init__(self, data_file, k, sinkPull = "tcp://*:7557", sinkPush = "tcp://localhost:7556", workers = "tcp://*:7555", max_it = 1000, tasks = 10):
-        self.dataset = self.read_data(data_file)
+    def __init__(self, data_file, k, sinkPull = "tcp://*:7557", sinkPush = "tcp://localhost:7556", workers = "tcp://*:7555", max_it = 1000, tasks = 100):
+        self.dataset = data_file
+        self.tol = 10
         self.k = k
         self.tasks = tasks
         self.max_it = max_it
-        self.totalTasks = ceil(len(self.dataset)/self.tasks)
+        clusters = self.sample(k, tasks)
+        self.clusters = clusters
+        self.totalTasks = count_f("data_part_")
         self.context = zmq.Context()
         self.sinkPush = self.context.socket(zmq.PUSH)
         self.sinkPull = self.context.socket(zmq.PULL)
@@ -39,8 +58,6 @@ class Fan:
         self.sinkPull.bind(sinkPull)
         self.sinkPush.connect(sinkPush)
         self.workers.bind(workers)
-        self.clusters = random.sample(self.dataset, k)
-        self.columns = len(self.clusters[0])
 
     def start(self):
         print("Press enter when workers and sink are ready...", end='')
@@ -49,15 +66,18 @@ class Fan:
         done = False
         new_clusters = deepcopy(self.clusters)
         while not done:
+            st = time.time()
+            print(f"Iteration: {iteration+1}")
             dsink = {
-                "tasks" : self.totalTasks,
+                "tasks" : self.tasks,
+                "Totaltasks" : self.totalTasks,
                 "clusters" : len(self.clusters)
             }
             self.sinkPush.send_json(dsink)
             for i in range(self.totalTasks):
                 dworker = {
                     "clusters" : new_clusters,
-                    "range" : [self.tasks*i,self.tasks*(i+1)]
+                    "ifile" : i
                 }
                 self.workers.send_json(dworker)
             res = self.sinkPull.recv_json()
@@ -73,27 +93,22 @@ class Fan:
             else:
                 self.clusters = deepcopy(new_clusters)
                 iteration += 1
+            et = time.time()
+            print("Time:",et-st)
         print("Terminado")
         print(self.clusters)
 
     def compareAssignment(self, new):
-        for i,c in enumerate(self.clusters):
-            for j in c:
-                if new[i].get(j,None) != self.clusters[i][j]:
-                    return False
+        print("Comparando clusters...")
+        for i in range(len(new)):
+            print(i)
+            if not "points" in self.clusters[i]:
+                return False
+            simil = dl.SequenceMatcher(new[i]["points"],self.clusters[i]["points"]).ratio()
+            print(simil)
+            if (1-simil)*100 > self.tol:
+                return False
         return True
-
-    def show_assignments(self):
-        df = self.dataset.iloc[:,-1].to_dict()
-        class_dict = {}
-        for i,c in enumerate(self.clusters):
-            class_dict[f"cluster_{i}"] = dict()
-            for s in c:
-                try:
-                    class_dict[f"cluster_{i}"][f"{df[s]}"] += 1
-                except:
-                    class_dict[f"cluster_{i}"][f"{df[s]}"] = 1
-            print(class_dict)
 
     def read_data(self, file_name):
         dataset = []
@@ -108,11 +123,23 @@ class Fan:
                 dataset.append(d)
         return dataset
 
+    def sample(self, k, tasks):
+        clusters = []
+        for i in range(k):
+            r = random.randint(0,480188)
+            fn = int(r/tasks)
+            ln = r%tasks
+            with open(f"data_part_{fn}.txt","r") as file:
+                for _ in range(ln-1):
+                    file.readline()
+                pl = parse_line(file.readline())
+            clusters.append(pl)
+        return clusters
 
 if __name__ == "__main__":
     # data_file = sys.argv[1]
     # k = int(sys.argv[2])
-    fan = Fan("test.txt", 3)
+    fan = Fan("data1.csv", 3)
     fan.start()
 
 # context = zmq.Context()
