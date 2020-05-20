@@ -33,35 +33,13 @@ class Sink:
             msg = self.receiver.recv_json()
             print(msg)
             self.clus = msg["clusters"]
-            assign = [{} for i in range(self.clus)]
             inertia = 0
             for task in range(msg["Totaltasks"]):
                 recvm = self.receiver.recv_json()
-                work = recvm["assign"]
                 print(f"\rTarea recibida {task+1}", end="")
-                for c in range(len(work)):
-                    inertia += work[c].pop("inertia")
-                    for p in work[c]:
-                        a = assign[c].get(p)
-                        if a:
-                            assign[c][p][0] += work[c][p][0]
-                            assign[c][p][1] += work[c][p][1]
-                        else:
-                            assign[c][p] = [work[c][p][0], work[c][p][1]]
+                inertia += recvm["inertia"]
             print("")
-            clusters = self.average_pos(assign)
-            norms = norm(clusters)
-            file_new = "new_clusters.txt"
-            with open(file_new,"w") as cl_f:
-                json.dump({"clusters":clusters,"norms":norms},cl_f)
-            self.sender.send_json({"clusters": file_new, "inertia":inertia})
-
-    def average_pos(self, assign):
-        clusters = [{} for i in range(self.clus)]
-        for c in range(len(assign)):
-            for p in assign[c]:
-                clusters[c][p] = assign[c][p][0]/assign[c][p][1]
-        return clusters
+            self.sender.send_json({"inertia":inertia})
 
 if __name__ == "__main__":
     sink = Sink()

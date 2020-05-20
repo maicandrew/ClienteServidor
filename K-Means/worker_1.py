@@ -41,30 +41,21 @@ class Worker:
                     data = json.load(cl_f)
                 clusters = data["clusters"]
                 norm_c = data["norms"]
-            assignment = self.assign(points, clusters, norm_c)
-            self.sink.send_json({"assign": assignment,"t":msg["ifile"]})
+            inertia = self.assign(points, clusters, norm_c)
+            self.sink.send_json({"inertia": inertia})
             i += 1
 
     def assign(self, points, clusters, norm_c):
-        assignment = [{"inertia": 0} for _ in range(len(clusters))]
+        inertia = 0
         norm_p = norm(points)
         for p, point in enumerate(points):
-            index = 0
             min_dis = 0.0-2.0
             for j, cluster in enumerate(clusters):
                 dis = self.css(point,cluster, norm_p[p], norm_c[j])
                 if dis > min_dis:
-                    index = j
                     min_dis = dis
-            for k in point:
-                a = assignment[index].get(k)
-                if a:
-                    assignment[index][k][0] += point[k]
-                    assignment[index][k][1] += 1
-                else:
-                    assignment[index][k] = [point[k], 1]
-            assignment[index]["inertia"] += acos(min_dis)
-        return assignment
+            inertia += acos(min_dis)
+        return inertia
 
     def css(self, p1, p2, n1, n2):
         com = None

@@ -66,7 +66,7 @@ def norm(d):
 class Fan:
     def __init__(self, data_file, k, sinkPull = "tcp://*:7557", sinkPush = "tcp://localhost:7556", workers = "tcp://*:7555", max_it = 10, tasks = 100):
         self.dataset = data_file
-        self.tol = 0.25
+        self.tol = 0.1
         self.tot_mov = 0
         self.k = k
         self.tasks = tasks
@@ -82,60 +82,32 @@ class Fan:
         self.workers.bind(workers)
 
     def start(self):
-        iteration = 0
-        done = False
-        init_time = time.time()
-        inertia = 0
-        while not done:
-            st = time.time()
-            print(f"Iteration: {iteration+1}")
-            dsink = {
-                "file" : "new_clusters.txt",
+        st = time.time()
+        dsink = {
+            "file" : "new_clusters.txt",
+            "tasks" : self.tasks,
+            "Totaltasks" : self.totalTasks,
+            "clusters" : self.k
+        }
+        self.sinkPush.send_json(dsink)
+        for i in range(self.totalTasks):
+            dworker = {
                 "tasks" : self.tasks,
-                "Totaltasks" : self.totalTasks,
-                "clusters" : self.k
+                "clusters" : f"clusters_for_{self.k}",
+                "data_file":self.dataset,
+                "ifile" : i,
+                "it":self.k
             }
-            self.sinkPush.send_json(dsink)
-            for i in range(self.totalTasks):
-                dworker = {
-                    "tasks" : self.tasks,
-                    "clusters" : self.clusters,
-                    "data_file":self.dataset,
-                    "ifile" : i,
-                    "it":iteration
-                }
-                self.workers.send_json(dworker)
-            res = self.sinkPull.recv_json()
-            new_clusters = res["clusters"]
-            inertia = res["inertia"]
-            print("inertia:",inertia)
-            if self.compareAssignment(new_clusters):
-                done = True
-            elif iteration >= self.max_it:
-                print("Limite de iteraciones")
-                break
-            else:
-                with open(self.clusters,"w") as f:
-                    with open(new_clusters,"r") as cl_f:
-                        data = json.load(cl_f)
-                    json.dump(data,f)
-                iteration += 1
-            et = time.time()
-            print("Time:",et-st)
-        end_time = time.time()
-        with open(f"clusters_for_{self.k}","w") as f:
-            with open(new_clusters,"r") as cl_f:
-                data = json.load(cl_f)
+            self.workers.send_json(dworker)
+        res = self.sinkPull.recv_json()
+        en = time.time()
+        inertia = res["inertia"]
+        with open("inertias_final.txt","r+") as f:
+            data = json.load(f)
+            data[self.k] = inertia
+            f.seek(0)
             json.dump(data,f)
-        with open("results.txt","r+") as result_file:
-            try:
-                data_charge = json.load(result_file)
-            except:
-                data_charge = {}
-            data_charge[self.k] = {"k":self.k, "inertia":inertia, "sum":self.tot_mov,"iterations":iteration, "time": end_time-init_time}
-            result_file.seek(0)
-            json.dump(data_charge,result_file)
-        print("Terminado:",end_time-init_time)
+        print("Terminado:",en-st)
         return inertia
 
     def css(self, p1, p2, n1, n2):
@@ -225,7 +197,7 @@ class Fan:
 if __name__ == "__main__":
     # data_file = sys.argv[1]
     # k = int(sys.argv[2])
-    ks = [2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,150,200]
+    ks = [70,80,90,100,110,120]
     for k in ks:
         fan = Fan("data_1_", k)
         fan.start()
